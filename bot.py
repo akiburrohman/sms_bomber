@@ -19,12 +19,17 @@ from sender import send_exact
 
 BOT_TOKEN = "8516622054:AAH1Zn2glzECII3j0MddxgcMZosgyxfPUcs"
 
-# ================= FLASK (MAIN THREAD) =================
+# ================= FLASK =================
 web_app = Flask(__name__)
 
 @web_app.route("/")
 def home():
     return "Bot is alive"
+
+
+def run_flask():
+    port = int(os.environ.get("PORT", 8080))
+    web_app.run(host="0.0.0.0", port=port)
 
 
 # ================= TELEGRAM BOT =================
@@ -137,10 +142,8 @@ def run_bot():
 
 # ================= MAIN =================
 if __name__ == "__main__":
-    # Telegram bot thread
-    threading.Thread(target=run_bot).start()
+    # Flask in background thread
+    threading.Thread(target=run_flask, daemon=True).start()
 
-    # Flask MUST be main thread for Render
-    port = int(os.environ.get("PORT", 8080))
-    web_app.run(host="0.0.0.0", port=port)
-
+    # Telegram bot MUST be main thread
+    run_bot()
