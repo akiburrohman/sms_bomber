@@ -1,41 +1,34 @@
-import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
-
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler,
-    MessageHandler, ContextTypes, filters
+    ApplicationBuilder,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
 )
 
 from sender import send_exact
-from config import BOT_TOKEN, MAX_PER_REQUEST
 
-# ---------- HEALTH SERVER (Render sleep prevent) ----------
-def start_health_server():
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"OK")
+BOT_TOKEN = "8516622054:AAH1Zn2glzECII3j0MddxgcMZosgyxfPUcs"
 
-    HTTPServer(("0.0.0.0", 10000), Handler).serve_forever()
+# ---------- MENUS ----------
+START_MENU = InlineKeyboardMarkup([
+    [InlineKeyboardButton("📤 Start Send SMS", callback_data="start_sms")],
+    [InlineKeyboardButton("❌ Cancel", callback_data="cancel")]
+])
 
+CANCEL_MENU = InlineKeyboardMarkup([
+    [InlineKeyboardButton("❌ Cancel", callback_data="cancel")]
+])
 
-# ---------- UI ----------
-MAIN_MENU = ReplyKeyboardMarkup(
-    [["📨 Send SMS", "❌ Cancel"]],
-    resize_keyboard=True
-)
-
-CANCEL_MENU = ReplyKeyboardMarkup(
-    [["❌ Cancel"]],
-    resize_keyboard=True
-)
-
-RESTART_MENU = ReplyKeyboardMarkup(
-    [["🔄 Re-Start"]],
-    resize_keyboard=True
-)
+RESTART_MENU = InlineKeyboardMarkup([
+    [InlineKeyboardButton("🔁 Restart", callback_data="restart")]
+])
 
 
 # ---------- COMMANDS ----------
@@ -43,56 +36,73 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text(
         "👋 Welcome to my bot",
-        reply_markup=MAIN_MENU
+        reply_markup=START_MENU
     )
 
 
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message.text
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-    if msg == "❌ Cancel":
+    if query.data == "start_sms":
         context.user_data.clear()
-        await update.message.reply_text("❌ Cancelled", reply_markup=MAIN_MENU)
-        return
-
-    if msg == "📨 Send SMS":
         context.user_data["step"] = "number"
-        await update.message.reply_text("📱 Enter your number:", reply_markup=CANCEL_MENU)
-        return
+        await query.message.reply_text(
+            "📱 Enter your number:",
+            reply_markup=CANCEL_MENU
+        )
 
-    if msg == "🔄 Re-Start":
-        await start(update, context)
-        return
+    elif query.data == "restart":
+        context.user_data.clear()
+        await query.message.reply_text(
+            "👋 Welcome to my bot",
+            reply_markup=START_MENU
+        )
 
+    elif query.data == "cancel":
+        context.user_data.clear()
+        await query.message.reply_text(
+            "❌ Cancelled",
+            reply_markup=START_MENU
+        )
+
+
+async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
     step = context.user_data.get("step")
 
+    # ---- STEP 1: NUMBER ----
     if step == "number":
-        context.user_data["phone"] = msg
+        context.user_data["phone"] = text
         context.user_data["step"] = "count"
-        await update.message.reply_text("🔢 How many OTP?", reply_markup=CANCEL_MENU)
+
+        await update.message.reply_text(
+            "🔢 How many OTP to send?",
+            reply_markup=CANCEL_MENU
+        )
         return
 
+    # ---- STEP 2: COUNT ----
     if step == "count":
-        try:
-            count = int(msg)
-            if count < 1 or count > MAX_PER_REQUEST:
-                raise ValueError
-        except:
-            await update.message.reply_text("❌ Invalid number")
+        if not text.isdigit():
+            await update.message.reply_text("❌ Enter a valid number")
             return
 
-        context.user_data["count"] = count
+        context.user_data["count"] = int(text)
         context.user_data["step"] = "delay"
-        await update.message.reply_text("⏱ Enter delay (seconds):", reply_markup=CANCEL_MENU)
+
+        await update.message.reply_text(
+            "⏱ Enter delay (seconds):",
+            reply_markup=CANCEL_MENU
+        )
         return
 
+    # ---- STEP 3: DELAY ----
     if step == "delay":
         try:
-            delay = float(msg)
-            if delay < 0:
-                raise ValueError
+            delay = float(text)
         except:
-            await update.message.reply_text("❌ Invalid delay")
+            await update.message.reply_text("❌ Enter valid seconds")
             return
 
         phone = context.user_data["phone"]
@@ -102,21 +112,30 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         ok, logs = send_exact(phone, count, delay)
 
-        text = "\n".join(logs)
-        text += "\n\n🎉 ALL OTP SENT" if ok else "\n\n⚠️ NOT ALL OTP SENT"
+        result_text = "\n".join(logs)
 
-        await update.message.reply_text(text, reply_markup=RESTART_MENU)
+        if ok:
+            result_text += "\n\n🎉 RESULT: ALL OTP SENT SUCCESSFULLY"
+        else:
+            result_text += "\n\n⚠️ RESULT: SOME OTP FAILED"
+
+        await update.message.reply_text(
+            result_text,
+            reply_markup=RESTART_MENU
+        )
+
         context.user_data.clear()
 
 
+# ---------- MAIN ----------
 def main():
-    threading.Thread(target=start_health_server, daemon=True).start()
-
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-    print("🤖 Bot running...")
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
+
+    print("Bot running...")
     app.run_polling()
 
 
