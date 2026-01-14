@@ -1,3 +1,6 @@
+import os
+import threading
+from flask import Flask
 from telegram import (
     Update,
     InlineKeyboardButton,
@@ -16,7 +19,15 @@ from sender import send_exact
 
 BOT_TOKEN = "8516622054:AAH1Zn2glzECII3j0MddxgcMZosgyxfPUcs"
 
-# ---------- MENUS ----------
+# ================= FLASK (MAIN THREAD) =================
+web_app = Flask(__name__)
+
+@web_app.route("/")
+def home():
+    return "Bot is alive"
+
+
+# ================= TELEGRAM BOT =================
 START_MENU = InlineKeyboardMarkup([
     [InlineKeyboardButton("📤 Start Send SMS", callback_data="start_sms")],
     [InlineKeyboardButton("❌ Cancel", callback_data="cancel")]
@@ -31,7 +42,6 @@ RESTART_MENU = InlineKeyboardMarkup([
 ])
 
 
-# ---------- COMMANDS ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text(
@@ -71,33 +81,28 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     step = context.user_data.get("step")
 
-    # ---- STEP 1: NUMBER ----
     if step == "number":
         context.user_data["phone"] = text
         context.user_data["step"] = "count"
-
         await update.message.reply_text(
             "🔢 How many OTP to send?",
             reply_markup=CANCEL_MENU
         )
         return
 
-    # ---- STEP 2: COUNT ----
     if step == "count":
         if not text.isdigit():
-            await update.message.reply_text("❌ Enter a valid number")
+            await update.message.reply_text("❌ Enter valid number")
             return
 
         context.user_data["count"] = int(text)
         context.user_data["step"] = "delay"
-
         await update.message.reply_text(
             "⏱ Enter delay (seconds):",
             reply_markup=CANCEL_MENU
         )
         return
 
-    # ---- STEP 3: DELAY ----
     if step == "delay":
         try:
             delay = float(text)
@@ -112,32 +117,29 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         ok, logs = send_exact(phone, count, delay)
 
-        result_text = "\n".join(logs)
-
-        if ok:
-            result_text += "\n\n🎉 RESULT: ALL OTP SENT SUCCESSFULLY"
-        else:
-            result_text += "\n\n⚠️ RESULT: SOME OTP FAILED"
+        msg = "\n".join(logs)
+        msg += "\n\n✅ DONE" if ok else "\n\n⚠️ SOME FAILED"
 
         await update.message.reply_text(
-            result_text,
+            msg,
             reply_markup=RESTART_MENU
         )
-
         context.user_data.clear()
 
 
-# ---------- MAIN ----------
-def main():
+def run_bot():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
-
-    print("Bot running...")
     app.run_polling()
 
 
+# ================= MAIN =================
 if __name__ == "__main__":
-    main()
+    # Telegram bot thread
+    threading.Thread(target=run_bot).start()
+
+    # Flask MUST be main thread for Render
+    port = int(os.environ.get("PORT", 10000))
+    web_app.run(host="0.0.0.0", port=port)
