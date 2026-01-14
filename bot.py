@@ -141,5 +141,6 @@ if __name__ == "__main__":
     threading.Thread(target=run_bot).start()
 
     # Flask MUST be main thread for Render
-    port = int(os.environ.get("PORT", 10000))
+    port = int(os.environ.get("PORT", 8080))
     web_app.run(host="0.0.0.0", port=port)
+
