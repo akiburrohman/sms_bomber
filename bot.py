@@ -43,7 +43,7 @@ CANCEL_MENU = InlineKeyboardMarkup([
 ])
 
 RESTART_MENU = InlineKeyboardMarkup([
-    [InlineKeyboardButton("🔁 Restart", callback_data="restart")]
+    [InlineKeyboardButton("🔁 Restart Bombing", callback_data="restart")]
 ])
 
 
@@ -147,4 +147,5 @@ if __name__ == "__main__":
 
     # Telegram bot MUST be main thread
     run_bot()
+
 
