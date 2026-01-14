@@ -34,7 +34,7 @@ def run_flask():
 
 # ================= TELEGRAM BOT =================
 START_MENU = InlineKeyboardMarkup([
-    [InlineKeyboardButton("📤 Start Send SMS", callback_data="start_sms")],
+    [InlineKeyboardButton("📤 Start Bombing SMS", callback_data="start_sms")],
     [InlineKeyboardButton("❌ Cancel", callback_data="cancel")]
 ])
 
@@ -50,7 +50,7 @@ RESTART_MENU = InlineKeyboardMarkup([
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text(
-        "👋 Welcome to my bot",
+        "👋 Welcome to my akib sms bombing bot",
         reply_markup=START_MENU
     )
 
@@ -63,14 +63,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.clear()
         context.user_data["step"] = "number"
         await query.message.reply_text(
-            "📱 Enter your number:",
+            "📱 Enter your number only Bangladeshi number:",
             reply_markup=CANCEL_MENU
         )
 
     elif query.data == "restart":
         context.user_data.clear()
         await query.message.reply_text(
-            "👋 Welcome to my bot",
+            "👋 Welcome to my akib sms bomber bot",
             reply_markup=START_MENU
         )
 
@@ -147,3 +147,4 @@ if __name__ == "__main__":
 
     # Telegram bot MUST be main thread
     run_bot()
+
