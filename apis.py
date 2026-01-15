@@ -93,6 +93,14 @@ APIS = [
         "payload": lambda phone: {"phoneNumber": phone},
         "success": lambda r: r.status_code in [200,201]
     },
+    {
+        "name": "Bay",
+        "method": "POST",
+        "url": "https://backend.amarbay.com/user/find_user_by_phone/",
+        "payload": lambda phone: {"phone_number": phone},
+        "success": lambda r: r.status_code in [200,201]
+    },
     
 ]
+
 
