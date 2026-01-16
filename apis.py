@@ -99,19 +99,17 @@ APIS = [
         "url": "https://backend.amarbay.com/user/find_user_by_phone/",
         "payload": lambda phone: {"phone_number": phone},
         "success": lambda r: r.status_code in [200,201]
-    },
+    }, 
     {
-        "name": "RS Lather",
-        "method": "POST",
-        "url": "https://api.rsleatherbd.com/api/v1/user/register",
-        "payload": lambda phone: {
-            "full_name": "MD ALAMIN",
-            "password": "vvVV::66",
-          "phone_number": phone},
-        "success": lambda r: r.status_code in [200,201]
-    },
-    
+    "name": "MedEasy",
+    "method": "GET",
+    "url": "https://api.medeasy.health/api/send-otp/",
+    "payload": lambda phone: f"+880{phone}",
+    "success": lambda r: r.status_code in [200, 201]
+    }
+
 ]
+
 
 
 
