@@ -6,22 +6,35 @@ from apis import APIS
 
 def send_one(phone: str) -> bool:
     """
-    Try all APIs randomly.
-    Return True if ANY api reports success.
+    আগের মতোই:
+    - সব API shuffle হবে
+    - যেকোনো ১টা TRUE হলেই return True
+    - কোনো extra send logic নাই
     """
     apis = APIS.copy()
     random.shuffle(apis)
 
     for api in apis:
         try:
-            r = requests.request(
-                api["method"],
-                api["url"],
-                json=api["payload"](phone),
-                timeout=10
-            )
+            payload = api["payload"](phone)
+
+            # 🔑 ONLY CHANGE: GET vs POST
+            if api["method"].upper() == "GET":
+                r = requests.get(
+                    api["url"],
+                    params=payload,
+                    timeout=10
+                )
+            else:
+                r = requests.post(
+                    api["url"],
+                    json=payload,
+                    timeout=10
+                )
+
             if api["success"](r):
                 return True
+
         except:
             pass
 
@@ -30,9 +43,11 @@ def send_one(phone: str) -> bool:
 
 def send_exact(phone: str, total: int, delay: float):
     """
-    Send EXACT number of OTP.
-    Fail হলে retry করবে অন্য API দিয়ে,
-    total এর বেশি কখনো পাঠাবে না।
+    🔒 এই function একদম আগের মতোই:
+    - sent < total না হওয়া পর্যন্ত loop
+    - ১টা OTP = ১টা success
+    - fail হলে retry (কিন্তু sent বাড়ে না)
+    - total এর বেশি কখনো যাবে না
     """
     sent = 0
     logs = []
