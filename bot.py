@@ -1,168 +1,269 @@
-from telegram import Update, ReplyKeyboardMarkup
-from telegram import ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
-from db import *
-from datetime import datetime
+import os
+import threading
+import sqlite3
+from flask import Flask
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, CallbackQueryHandler,
+    MessageHandler, ContextTypes, filters
+)
+from sender import send_exact
+from db import init_db, get_user, update_sent, set_role, update_premium, get_premium_until
 
-# ========== CONFIG ==========
-BOT_TOKEN = "8516622054:AAH1Zn2glzECII3j0MddxgcMZosgyxfPUcs"
+# ================= ADMIN CONFIG =================
 ADMIN_ID = 5762886443
 ADMIN_USERNAME = "@md_bro2k"
+BOT_TOKEN = "8516622054:AAH1Zn2glzECII3j0MddxgcMZosgyxfPUcs"
 
-# ========== INIT ==========
-init_db()
+# ================= FLASK (KEEP ALIVE) =================
+web_app = Flask(__name__)
 
-# ========== MENUS ==========
-MAIN_MENU = ReplyKeyboardMarkup(
-    [["📨 Send OTP"], ["📊 Statistics"], ["🔙 Back"]],
-    resize_keyboard=True
-)
+@web_app.route("/")
+def home():
+    return "Bot is alive"
 
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    web_app.run(host="0.0.0.0", port=port)
 
+# ================= TELEGRAM BUTTONS =================
+START_MENU = InlineKeyboardMarkup([
+    [InlineKeyboardButton("📤 Start Send SMS", callback_data="start_sms")],
+    [InlineKeyboardButton("🛠 Admin Panel", callback_data="admin_panel")]
+])
 
-ADMIN_MENU = ReplyKeyboardMarkup(
-    [
-        ["📊 Users Stats", "💎 Set Premium"],
-        ["👤 Set Basic", "🚫 Ban User"],
-        ["✅ Unban User", "🔄 Reset User Usage"],
-        ["❌ Close"]
-    ],
-    resize_keyboard=True
-)
+CANCEL_MENU = InlineKeyboardMarkup([
+    [InlineKeyboardButton("❌ Cancel", callback_data="cancel")]
+])
 
+RESTART_MENU = InlineKeyboardMarkup([
+    [InlineKeyboardButton("🔁 Restart", callback_data="restart")]
+])
 
+BACK_MENU = InlineKeyboardMarkup([
+    [InlineKeyboardButton("⬅️ Back", callback_data="back")]
+])
+
+# ================= START COMMAND =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    u = update.effective_user
-    add_user(u.id, u.username)
-    data = get_user(u.id)
+    user = update.effective_user
+    context.user_data.clear()
 
-    msg = f"👋 Welcome {u.first_name}\n\n"
-    msg += f"🆔 User ID: `{data[0]}`\n"
-    msg += f"👤 Username: `{data[1]}`\n"
-    msg += f"🎭 Role: {data[3]}\n"
-    msg += f"📨 Used OTP Today: {data[5]}\n"
+    role, limit, sent = get_user(user.id, user.username)
+    remaining = max(limit - sent, 0)
+    premium_until = get_premium_until(user.id)
 
-    if data[3] == "premium" and data[4]:
-        msg += f"💎 Premium valid until: {data[4]}\n"
+    # MarkdownV1 escape for Telegram
+    def escape_md1(text):
+        return str(text).replace("_", "\\_").replace("*", "\\*").replace("[", "\\[").replace("`", "\\`")
 
-    msg += f"\n💎 Premium নিতে চাইলে আপনার User ID পাঠান: {data[0]}\nAdmin: {ADMIN_USERNAME}"
+    user_id_md = escape_md1(user.id)
+    first_name_md = escape_md1(user.first_name)
+    role_md = escape_md1(role)
+    limit_md = escape_md1(limit)
+    sent_md = escape_md1(sent)
+    remaining_md = escape_md1(remaining)
+    premium_text = escape_md1(premium_until) if role == "premium" and premium_until else ""
 
-    await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=MAIN_MENU)
+    msg = f"👋 Welcome to AKIB BOMBER {first_name_md}\n\n"
+    msg += f"🆔 Your User ID: `{user_id_md}`\n"
+    msg += f"👤 Role: {role_md}\n"
+    msg += f"📊 Daily Limit: {limit_md}\n"
+    msg += f"📤 Used Today: {sent_md}\n"
+    msg += f"🟢 Remaining: {remaining_md}\n"
+    if premium_text:
+        msg += f"💎 Premium valid until: `{premium_text}`\n"
+    msg += f"\n💎 Premium নিতে চাইলে আপনার User ID দিন:\n{ADMIN_USERNAME}"
 
-async def send_otp(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    u = get_user(uid)
+    await update.message.reply_text(msg, reply_markup=START_MENU, parse_mode="Markdown")
 
-    if u[6] == 1:
-        await update.message.reply_text("🚫 You are banned.")
-        return
+# ================= BUTTON HANDLER =================
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+    user = update.effective_user
 
-    limit = 30
-    if u[3] == "premium":
-        limit = 50
-    if uid == ADMIN_ID:
-        limit = 999999
+    if data == "start_sms":
+        context.user_data.clear()
+        context.user_data["step"] = "number"
+        await query.message.reply_text("📱 Enter Bangladeshi number (without +88):", reply_markup=CANCEL_MENU)
 
-    if u[5] >= limit:
-        await update.message.reply_text("⚠️ Daily SMS limit reached.")
-        return
+    elif data == "restart":
+        context.user_data.clear()
+        await query.message.reply_text("🔁 Restarted", reply_markup=START_MENU)
 
-    add_sms(uid)
-    await update.message.reply_text(f"✅ OTP Sent! You have used {u[5]+1}/{limit} OTPs today.")
+    elif data == "cancel":
+        context.user_data.clear()
+        await query.message.reply_text("❌ Cancelled", reply_markup=START_MENU)
 
-async def statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    u = get_user(uid)
+    elif data == "back":
+        context.user_data.clear()
+        await query.message.reply_text("⬅️ Back", reply_markup=START_MENU)
 
-    msg = f"📊 Your Statistics\n\n"
-    msg += f"🆔 `{u[0]}`\n"
-    msg += f"👤 `{u[1]}`\n"
-    msg += f"📞 `{u[2] if u[2] else 'N/A'}`\n"
-    msg += f"🎭 {u[3]}\n"
-    msg += f"📨 Used OTPs: {u[5]}\n"
-    if u[3] == "premium" and u[4]:
-        msg += f"💎 Premium valid until: {u[4]}\n"
+    elif data == "admin_panel":
+        if user.id != ADMIN_ID:
+            await query.message.reply_text("🚫 You are not admin!")
+            return
+        markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📊 Users Stats", callback_data="stats")],
+            [InlineKeyboardButton("💎 Set Premium", callback_data="set_premium")],
+            [InlineKeyboardButton("👤 Set Basic", callback_data="set_basic")],
+            [InlineKeyboardButton("🚫 Ban User", callback_data="ban_user")],
+            [InlineKeyboardButton("✅ Unban User", callback_data="unban_user")],
+            [InlineKeyboardButton("🔄 Reset User Usage", callback_data="reset_user")],
+            [InlineKeyboardButton("❌ Close", callback_data="close_admin")]
+        ])
+        await query.message.reply_text("🛠 Admin Panel", reply_markup=markup)
 
-    await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=MAIN_MENU)
+    elif data == "close_admin":
+        await query.message.reply_text("❌ Admin Panel Closed", reply_markup=START_MENU)
 
-# ---------- ADMIN ----------
-async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id == ADMIN_ID:
-        await update.message.reply_text("🛠 Admin Panel", reply_markup=ADMIN_MENU)
+    elif data == "stats" and user.id == ADMIN_ID:
+        con = sqlite3.connect("users.db")
+        cur = con.cursor()
+        cur.execute("SELECT user_id, username, phone, role, sent_today, daily_limit, premium_until FROM users")
+        rows = cur.fetchall()
+        con.close()
 
-async def admin_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    t = update.message.text
-    if update.effective_user.id != ADMIN_ID:
-        return
+        def escape_md1(text):
+            return str(text).replace("_", "\\_").replace("*", "\\*").replace("[", "\\[").replace("`", "\\`")
 
-    args = t.split()
-    if t.startswith("💎 Set Premium"):
-        await update.message.reply_text("Use /setpremium <user_id> <days>")
-    elif t.startswith("👤 Set Basic"):
-        await update.message.reply_text("Use /setbasic <user_id>")
-    elif t.startswith("🚫 Ban"):
-        await update.message.reply_text("Use /ban <user_id>")
-    elif t.startswith("✅ Unban"):
-        await update.message.reply_text("Use /unban <user_id>")
-    elif t.startswith("♻ Reset User"):
-        await update.message.reply_text("Use /reset <user_id>")
+        msg = "📊 Users Stats:\n\n"
+        for r in rows:
+            uid, uname, phone, role, sent, limit, premium_until = r
+            uname_md = escape_md1(uname) if uname else "N/A"
+            uid_md = escape_md1(uid)
+            phone_md = escape_md1(phone) if phone else "N/A"
+            role_md = escape_md1(role)
+            sent_md = escape_md1(sent)
+            limit_md = escape_md1(limit)
+            premium_md = escape_md1(premium_until) if premium_until else "N/A"
+            msg += f"ID:`{uid_md}` | Username:`{uname_md}` | Phone:`{phone_md}` | Role:`{role_md}` | Sent:`{sent_md}/{limit_md}` | Premium Until:`{premium_md}`\n"
 
-async def setpremium(update, context):
-    if update.effective_user.id != ADMIN_ID: return
-    if len(context.args) != 2:
-        await update.message.reply_text("Usage: /setpremium <user_id> <days>")
-        return
-    uid = int(context.args[0])
-    days = int(context.args[1])
-    set_premium(uid, days)
-    await update.message.reply_text(f"💎 User {uid} set as Premium for {days} days.")
+        await query.message.reply_text(msg, parse_mode="Markdown")
 
-async def setbasic(update, context):
-    if update.effective_user.id != ADMIN_ID: return
-    uid = int(context.args[0])
-    set_basic(uid)
-    await update.message.reply_text(f"👤 User {uid} set as Basic.")
+    elif data in ["set_premium", "set_basic", "ban_user", "unban_user", "reset_user"] and user.id == ADMIN_ID:
+        context.user_data["admin_action"] = data
+        prompts = {
+            "set_premium": "💎 Send the USER ID to make Premium (also set duration in days):",
+            "set_basic": "👤 Send the USER ID to make Basic:",
+            "ban_user": "🚫 Send the USER ID to Ban:",
+            "unban_user": "✅ Send the USER ID to Unban:",
+            "reset_user": "🔄 Send the USER ID to reset usage:"
+        }
+        await query.message.reply_text(prompts[data], reply_markup=BACK_MENU)
 
-async def ban(update, context):
-    if update.effective_user.id != ADMIN_ID: return
-    uid = int(context.args[0])
-    ban_user(uid, 1)
-    await update.message.reply_text(f"🚫 User {uid} banned.")
-
-async def unban(update, context):
-    if update.effective_user.id != ADMIN_ID: return
-    uid = int(context.args[0])
-    ban_user(uid, 0)
-    await update.message.reply_text(f"✅ User {uid} unbanned.")
-
-async def reset(update, context):
-    if update.effective_user.id != ADMIN_ID: return
-    uid = int(context.args[0])
-    reset_user(uid)
-    await update.message.reply_text(f"♻ User {uid} reset done.")
-
+# ================= TEXT HANDLER =================
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    t = update.message.text
-    if t == "📨 Send OTP":
-        await send_otp(update, context)
-    elif t == "📊 Statistics":
-        await statistics(update, context)
-    elif t == "🔙 Back":
-        await start(update, context)
-    elif t in ["💎 Set Premium","👤 Set Basic","🚫 Ban","✅ Unban","♻ Reset User"]:
-        await admin_action(update, context)
+    user = update.effective_user
+    text = update.message.text.strip()
+    step = context.user_data.get("step")
+    admin_action = context.user_data.get("admin_action")
 
-def main():
+    # ----------------- Admin actions -----------------
+    if user.id == ADMIN_ID and admin_action:
+        if not text.isdigit():
+            await update.message.reply_text("❌ Enter valid numeric USER ID")
+            return
+        uid = int(text)
+        if admin_action == "set_premium":
+            context.user_data["admin_uid"] = uid
+            context.user_data["step"] = "premium_duration"
+            await update.message.reply_text("⏱ Enter premium duration in days:", reply_markup=BACK_MENU)
+        elif admin_action == "set_basic":
+            set_role(uid, "basic", 100)
+            await update.message.reply_text(f"✅ User {uid} set to BASIC (100 OTP/day)")
+            context.user_data.pop("admin_action", None)
+        elif admin_action == "ban_user":
+            set_role(uid, "banned", 0)
+            await update.message.reply_text(f"🚫 User {uid} BANNED")
+            context.user_data.pop("admin_action", None)
+        elif admin_action == "unban_user":
+            set_role(uid, "basic", 100)
+            await update.message.reply_text(f"✅ User {uid} UNBANNED & set to BASIC")
+            context.user_data.pop("admin_action", None)
+        elif admin_action == "reset_user":
+            con = sqlite3.connect("users.db")
+            cur = con.cursor()
+            cur.execute("UPDATE users SET sent_today=0 WHERE user_id=?", (uid,))
+            con.commit()
+            con.close()
+            await update.message.reply_text(f"🔄 User {uid} usage RESET")
+            context.user_data.pop("admin_action", None)
+        return
+
+    if step == "premium_duration":
+        if not text.isdigit():
+            await update.message.reply_text("❌ Enter valid number of days")
+            return
+        days = int(text)
+        uid = context.user_data.get("admin_uid")
+        update_premium(uid, days)
+        await update.message.reply_text(f"💎 Premium for User {uid} set for {days} days")
+        context.user_data.pop("admin_uid", None)
+        context.user_data.pop("admin_action", None)
+        context.user_data.pop("step", None)
+        return
+
+    # ----------------- User OTP flow -----------------
+    if step == "number":
+        context.user_data["phone"] = text
+        context.user_data["step"] = "count"
+        await update.message.reply_text("🔢 How many OTP to send?", reply_markup=CANCEL_MENU)
+        return
+
+    if step == "count":
+        if not text.isdigit():
+            await update.message.reply_text("❌ Enter valid number")
+            return
+        count = int(text)
+        role, limit, sent = get_user(user.id, user.username)
+
+        if role == "basic" and count > 30:
+            await update.message.reply_text("⚠️ Basic user can send max 30 OTP per session")
+            return
+        elif role == "premium" and count > 50:
+            await update.message.reply_text("⚠️ Premium user can send max 50 OTP per session")
+            return
+
+        if sent + count > limit:
+            await update.message.reply_text(f"⚠️ Daily limit exceeded\nUsed: {sent}/{limit}\nContact admin for premium: {ADMIN_USERNAME}")
+            context.user_data.clear()
+            return
+
+        context.user_data["count"] = count
+        context.user_data["step"] = "delay"
+        await update.message.reply_text("⏱ Enter delay (seconds):", reply_markup=CANCEL_MENU)
+        return
+
+    if step == "delay":
+        try:
+            delay = float(text)
+        except:
+            await update.message.reply_text("❌ Enter valid seconds")
+            return
+        phone = context.user_data["phone"]
+        count = context.user_data["count"]
+        await update.message.reply_text("🚀 Sending OTPs...")
+        ok, logs = send_exact(phone, count, delay)
+        if ok:
+            update_sent(user.id, count)
+        msg = "\n".join(logs)
+        msg += "\n\n✅ DONE" if ok else "\n\n⚠️ SOME FAILED"
+        await update.message.reply_text(msg, reply_markup=RESTART_MENU)
+        context.user_data.clear()
+
+# ================= RUN BOT =================
+def run_bot():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("admin", admin))
-    app.add_handler(CommandHandler("setpremium", setpremium))
-    app.add_handler(CommandHandler("setbasic", setbasic))
-    app.add_handler(CommandHandler("ban", ban))
-    app.add_handler(CommandHandler("unban", unban))
-    app.add_handler(CommandHandler("reset", reset))
+    app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
     app.run_polling()
 
-main()
-
+# ================= MAIN =================
+if __name__ == "__main__":
+    init_db()
+    threading.Thread(target=run_flask, daemon=True).start()
+    run_bot()
