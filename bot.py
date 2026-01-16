@@ -50,7 +50,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remaining = max(limit - sent, 0)
 
     msg = (
-        f"👋 Welcome {user.first_name}\n\n"
+        f"👋 Welcome to AKIB BOMBER {user.first_name}\n\n"
         f"🆔 Your User ID: `{user.id}`\n"
         f"👤 Role: {role}\n"
         f"📊 Daily Limit: {limit}\n"
@@ -183,10 +183,22 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         count = int(text)
         role, limit, sent = get_user(user.id, user.username)
+
+        # ----------------- SESSION MAX LIMIT -----------------
+        if role == "basic" and count > 30:
+            await update.message.reply_text("⚠️ Basic user can send max 30 OTP per session")
+            return
+        elif role == "premium" and count > 50:
+            await update.message.reply_text("⚠️ Premium user can send max 50 OTP per session")
+            return
+        # Admin no limit
+
+        # Daily limit check
         if sent + count > limit:
-            await update.message.reply_text(f"⚠️ Limit exceeded\nUsed: {sent}/{limit}\nContact admin for premium: {ADMIN_USERNAME}")
+            await update.message.reply_text(f"⚠️ Daily limit exceeded\nUsed: {sent}/{limit}\nContact admin for premium: {ADMIN_USERNAME}")
             context.user_data.clear()
             return
+
         context.user_data["count"] = count
         context.user_data["step"] = "delay"
         await update.message.reply_text("⏱ Enter delay (seconds):", reply_markup=CANCEL_MENU)
