@@ -1,6 +1,7 @@
 import os
 import threading
 import sqlite3
+from datetime import datetime, timedelta
 from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -46,26 +47,24 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     context.user_data.clear()
 
-    role, limit, sent = get_user(user.id, user.username)
+    role, limit, sent, premium_until = get_user(user.id, user.username)
     remaining = max(limit - sent, 0)
 
     msg = (
         f"👋 Welcome to AKIB BOMBER {user.first_name}\n\n"
-        f"🆔 Your User ID: `{user.id}`\n"   # monospace + copy-friendly
+        f"🆔 Your User ID: `{user.id}`\n"
         f"👤 Role: {role}\n"
         f"📊 Daily Limit: {limit}\n"
         f"📤 Used Today: {sent}\n"
-        f"🟢 Remaining: {remaining}\n\n"
-        f"💎 Premium নিতে চাইলে আপনার User ID দিন:\n"
-        f"{ADMIN_USERNAME}"                 # @md_bro2k 그대로
+        f"🟢 Remaining: {remaining}\n"
     )
 
-    await update.message.reply_text(
-        msg,
-        reply_markup=START_MENU,
-        parse_mode="Markdown"
-    )
+    if role == "premium" and premium_until:
+        msg += f"💎 Premium Active Until: {premium_until}\n"
 
+    msg += f"\n💎 Premium নিতে চাইলে আপনার User ID দিন:\n{ADMIN_USERNAME}"
+
+    await update.message.reply_text(msg, reply_markup=START_MENU, parse_mode="Markdown")
 
 # ================= BUTTON HANDLER =================
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -91,7 +90,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user.id != ADMIN_ID:
             await query.message.reply_text("🚫 You are not admin!")
             return
-        # Admin panel buttons
         markup = InlineKeyboardMarkup([
             [InlineKeyboardButton("📊 Users Stats", callback_data="stats")],
             [InlineKeyboardButton("💎 Set Premium", callback_data="set_premium")],
@@ -106,23 +104,23 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "close_admin":
         await query.message.reply_text("❌ Admin Panel Closed", reply_markup=START_MENU)
 
-    # Show stats
     elif data == "stats" and user.id == ADMIN_ID:
         con = sqlite3.connect("users.db")
         cur = con.cursor()
-        cur.execute("SELECT user_id, username, role, sent_today, daily_limit FROM users")
+        cur.execute("SELECT user_id, username, role, sent_today, daily_limit, premium_until FROM users")
         rows = cur.fetchall()
         con.close()
-
         msg = "📊 Users Stats:\n\n"
         for r in rows:
-            msg += f"ID:{r[0]} | {r[1]} | {r[2]} | Sent:{r[3]}/{r[4]}\n"
+            msg += f"ID:{r[0]} | {r[1]} | {r[2]} | Sent:{r[3]}/{r[4]}"
+            if r[5]:
+                msg += f" | Premium Until:{r[5]}"
+            msg += "\n"
         await query.message.reply_text(msg)
 
-    # Admin actions buttons
     elif data == "set_premium" and user.id == ADMIN_ID:
         context.user_data["admin_action"] = "premium"
-        await query.message.reply_text("💎 Send the USER ID to make Premium:")
+        await query.message.reply_text("💎 Send like: USER_ID DAYS (e.g., 123456 30)")
 
     elif data == "set_basic" and user.id == ADMIN_ID:
         context.user_data["admin_action"] = "basic"
@@ -147,31 +145,54 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     step = context.user_data.get("step")
     admin_action = context.user_data.get("admin_action")
 
-    # ----------------- Admin actions -----------------
     if user.id == ADMIN_ID and admin_action:
-        if not text.isdigit():
-            await update.message.reply_text("❌ Enter valid numeric USER ID")
-            return
-        uid = int(text)
         if admin_action == "premium":
-            set_role(uid, "premium", 1000)
-            await update.message.reply_text(f"✅ User {uid} set to PREMIUM (1000 OTP/day)")
+            parts = text.split()
+            if len(parts) < 2 or not parts[0].isdigit() or not parts[1].isdigit():
+                await update.message.reply_text("❌ Send like: USER_ID DAYS (e.g., 123456 30)")
+                return
+            uid = int(parts[0])
+            days = int(parts[1])
+            until_date = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
+            set_role(uid, "premium", 1000, until_date)
+            await update.message.reply_text(f"✅ User {uid} set to PREMIUM ({days} days) until {until_date}")
+
         elif admin_action == "basic":
+            if not text.isdigit(): 
+                await update.message.reply_text("❌ Enter valid numeric USER ID")
+                return
+            uid = int(text)
             set_role(uid, "basic", 100)
             await update.message.reply_text(f"✅ User {uid} set to BASIC (100 OTP/day)")
+
         elif admin_action == "ban":
+            if not text.isdigit(): 
+                await update.message.reply_text("❌ Enter valid numeric USER ID")
+                return
+            uid = int(text)
             set_role(uid, "banned", 0)
             await update.message.reply_text(f"🚫 User {uid} BANNED")
+
         elif admin_action == "unban":
+            if not text.isdigit(): 
+                await update.message.reply_text("❌ Enter valid numeric USER ID")
+                return
+            uid = int(text)
             set_role(uid, "basic", 100)
             await update.message.reply_text(f"✅ User {uid} UNBANNED & set to BASIC")
+
         elif admin_action == "reset":
+            if not text.isdigit(): 
+                await update.message.reply_text("❌ Enter valid numeric USER ID")
+                return
+            uid = int(text)
             con = sqlite3.connect("users.db")
             cur = con.cursor()
             cur.execute("UPDATE users SET sent_today=0 WHERE user_id=?", (uid,))
             con.commit()
             con.close()
             await update.message.reply_text(f"🔄 User {uid} usage RESET")
+
         context.user_data.pop("admin_action", None)
         return
 
@@ -187,18 +208,16 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Enter valid number")
             return
         count = int(text)
-        role, limit, sent = get_user(user.id, user.username)
+        role, limit, sent, _ = get_user(user.id, user.username)
 
-        # ----------------- SESSION MAX LIMIT -----------------
+        # SESSION LIMIT
         if role == "basic" and count > 30:
             await update.message.reply_text("⚠️ Basic user can send max 30 OTP per session")
             return
         elif role == "premium" and count > 50:
             await update.message.reply_text("⚠️ Premium user can send max 50 OTP per session")
             return
-        # Admin no limit
 
-        # Daily limit check
         if sent + count > limit:
             await update.message.reply_text(f"⚠️ Daily limit exceeded\nUsed: {sent}/{limit}\nContact admin for premium: {ADMIN_USERNAME}")
             context.user_data.clear()
@@ -220,12 +239,10 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🚀 Sending OTPs...")
         ok, logs = send_exact(phone, count, delay)
         if ok:
-            update_sent(user.id, count)  # DB update
+            update_sent(user.id, count)
         msg = "\n".join(logs)
         msg += "\n\n✅ DONE" if ok else "\n\n⚠️ SOME FAILED"
         await update.message.reply_text(msg, reply_markup=RESTART_MENU)
-
-        # ----------------- SESSION CLEANUP -----------------
         context.user_data.clear()
 
 # ================= RUN BOT =================
@@ -241,8 +258,3 @@ if __name__ == "__main__":
     init_db()
     threading.Thread(target=run_flask, daemon=True).start()
     run_bot()
-
-
-
-
-
