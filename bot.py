@@ -56,7 +56,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     role, limit, sent = get_user(user.id, user.username)
 
     await update.message.reply_text(
-        f"👋 Welcome {user.first_name}\n\n"
+        f"👋 Welcome to akib bomber {user.first_name}\n\n"
         f"🆔 Your User ID: `{user.id}`\n"
         f"👤 Role: {role}\n"
         f"📊 Daily Limit: {limit}\n\n"
@@ -205,3 +205,4 @@ if __name__ == "__main__":
 
     threading.Thread(target=run_flask, daemon=True).start()
     run_bot()
+
