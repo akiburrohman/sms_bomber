@@ -147,13 +147,13 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             set_role(uid, "premium", 1000)
             await update.message.reply_text(f"✅ User {uid} set to PREMIUM")
         elif admin_action == "basic":
-            set_role(uid, "basic", 100)
+            set_role(uid, "basic", 50)
             await update.message.reply_text(f"✅ User {uid} set to BASIC")
         elif admin_action == "ban":
             set_role(uid, "banned", 0)
             await update.message.reply_text(f"🚫 User {uid} BANNED")
         elif admin_action == "unban":
-            set_role(uid, "basic", 100)  # unban → default basic
+            set_role(uid, "basic", 50)  # unban → default basic
             await update.message.reply_text(f"✅ User {uid} UNBANNED")
         context.user_data.pop("admin_action", None)
         return
@@ -210,4 +210,5 @@ if __name__ == "__main__":
     init_db()
     threading.Thread(target=run_flask, daemon=True).start()
     run_bot()
+
 
