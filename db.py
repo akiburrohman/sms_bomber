@@ -10,10 +10,11 @@ def init_db():
     CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY,
         username TEXT,
+        phone TEXT,
         role TEXT DEFAULT 'basic',
-        daily_limit INTEGER DEFAULT 100,
         sent_today INTEGER DEFAULT 0,
-        premium_until TEXT DEFAULT NULL
+        daily_limit INTEGER DEFAULT 100,
+        premium_until TEXT
     )
     """)
     con.commit()
@@ -22,45 +23,49 @@ def init_db():
 def get_user(user_id, username=None):
     con = sqlite3.connect(DB_FILE)
     cur = con.cursor()
-    cur.execute("SELECT role, daily_limit, sent_today, premium_until FROM users WHERE user_id=?", (user_id,))
+    cur.execute("SELECT user_id, username, phone, role, sent_today, daily_limit, premium_until FROM users WHERE user_id=?", (user_id,))
     row = cur.fetchone()
-    if not row:
-        cur.execute("INSERT INTO users(user_id, username, role, daily_limit, sent_today) VALUES(?,?,?,?,0)",
-                    (user_id, username, 'basic', 100))
-        con.commit()
-        role, limit, sent, premium_until = 'basic', 100, 0, None
+    if row:
+        con.close()
+        premium_until = row[6]
+        return row[3], row[5], row[4], premium_until, row[2]
     else:
-        role, limit, sent, premium_until = row
-        # Check if premium expired
-        if premium_until:
-            try:
-                if datetime.strptime(premium_until, "%Y-%m-%d") < datetime.now():
-                    # downgrade to basic
-                    cur.execute("UPDATE users SET role='basic', daily_limit=100, premium_until=NULL WHERE user_id=?", (user_id,))
-                    con.commit()
-                    role, limit, premium_until = 'basic', 100, None
-            except:
-                pass
-    con.close()
-    return role, limit, sent, premium_until
+        # new user insert
+        cur.execute("INSERT INTO users (user_id, username) VALUES (?, ?)", (user_id, username))
+        con.commit()
+        con.close()
+        return "basic", 100, 0, None, None
 
-def update_sent(user_id, amount):
+def update_sent(user_id, count):
     con = sqlite3.connect(DB_FILE)
     cur = con.cursor()
-    cur.execute("UPDATE users SET sent_today = sent_today + ? WHERE user_id=?", (amount, user_id))
+    cur.execute("UPDATE users SET sent_today = sent_today + ? WHERE user_id=?", (count, user_id))
     con.commit()
     con.close()
 
-def set_role(user_id, role, daily_limit, premium_until=None):
+def set_role(user_id, role, limit):
     con = sqlite3.connect(DB_FILE)
     cur = con.cursor()
-    cur.execute("SELECT 1 FROM users WHERE user_id=?", (user_id,))
-    if not cur.fetchone():
-        cur.execute("INSERT INTO users(user_id, username, role, daily_limit, sent_today, premium_until) VALUES(?,?,?,?,0,?)",
-                    (user_id, None, role, daily_limit, premium_until))
+    cur.execute("UPDATE users SET role=?, daily_limit=? WHERE user_id=?", (role, limit, user_id))
+    con.commit()
+    con.close()
+
+# ========== PREMIUM FUNCTIONS ==========
+def update_premium(user_id, days):
+    con = sqlite3.connect(DB_FILE)
+    cur = con.cursor()
+    cur.execute("SELECT premium_until FROM users WHERE user_id=?", (user_id,))
+    row = cur.fetchone()
+    now = datetime.now()
+    if row and row[0]:
+        old = datetime.fromisoformat(row[0])
+        if old > now:
+            new_until = old + timedelta(days=days)
+        else:
+            new_until = now + timedelta(days=days)
     else:
-        cur.execute("UPDATE users SET role=?, daily_limit=?, premium_until=? WHERE user_id=?",
-                    (role, daily_limit, premium_until, user_id))
+        new_until = now + timedelta(days=days)
+    cur.execute("UPDATE users SET role='premium', daily_limit=1000, premium_until=? WHERE user_id=?", (new_until.isoformat(), user_id))
     con.commit()
     con.close()
 
