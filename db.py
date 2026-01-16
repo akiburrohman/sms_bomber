@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime, timedelta
 
 DB = "users.db"
 
@@ -22,10 +23,7 @@ def init_db():
 def add_user(uid, username):
     con = sqlite3.connect(DB)
     cur = con.cursor()
-    cur.execute(
-        "INSERT OR IGNORE INTO users(user_id, username) VALUES(?,?)",
-        (uid, username)
-    )
+    cur.execute("INSERT OR IGNORE INTO users(user_id, username) VALUES(?,?)", (uid, username))
     con.commit()
     con.close()
 
@@ -44,23 +42,18 @@ def add_sms(uid):
     con.commit()
     con.close()
 
-def set_premium(uid, until):
+def set_premium(uid, days):
+    until = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
     con = sqlite3.connect(DB)
     cur = con.cursor()
-    cur.execute(
-        "UPDATE users SET role='premium', premium_until=? WHERE user_id=?",
-        (until, uid)
-    )
+    cur.execute("UPDATE users SET role='premium', premium_until=? WHERE user_id=?", (until, uid))
     con.commit()
     con.close()
 
 def set_basic(uid):
     con = sqlite3.connect(DB)
     cur = con.cursor()
-    cur.execute(
-        "UPDATE users SET role='basic', premium_until=NULL WHERE user_id=?",
-        (uid,)
-    )
+    cur.execute("UPDATE users SET role='basic', premium_until=NULL WHERE user_id=?", (uid,))
     con.commit()
     con.close()
 
@@ -74,9 +67,6 @@ def ban_user(uid, v):
 def reset_user(uid):
     con = sqlite3.connect(DB)
     cur = con.cursor()
-    cur.execute("""
-        UPDATE users SET sms_used=0, role='basic', premium_until=NULL
-        WHERE user_id=?
-    """, (uid,))
+    cur.execute("UPDATE users SET sms_used=0, role='basic', premium_until=NULL WHERE user_id=?", (uid,))
     con.commit()
     con.close()
