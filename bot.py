@@ -1,4 +1,5 @@
 from telegram import Update, ReplyKeyboardMarkup
+from telegram import ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 from db import *
 from datetime import datetime
@@ -17,14 +18,18 @@ MAIN_MENU = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
+
+
 ADMIN_MENU = ReplyKeyboardMarkup(
-    [["📊 Users Stats"]],
-    [["💎 Set Premium", "👤 Set Basic"]],
-    [["🚫 Ban", "✅ Unban"]],
-    [["♻ Reset User"]],
-    [["🔙 Back"]],
+    [
+        ["📊 Users Stats", "💎 Set Premium"],
+        ["👤 Set Basic", "🚫 Ban User"],
+        ["✅ Unban User", "🔄 Reset User Usage"],
+        ["❌ Close"]
+    ],
     resize_keyboard=True
 )
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = update.effective_user
@@ -160,3 +165,4 @@ def main():
     app.run_polling()
 
 main()
+
