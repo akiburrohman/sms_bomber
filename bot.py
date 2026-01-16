@@ -50,7 +50,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remaining = max(limit - sent, 0)
 
     msg = (
-        f"👋 Welcome to AKIB BOMBER {user.first_name}\n\n"
+        f"👋 Welcome {user.first_name}\n\n"
         f"🆔 Your User ID: `{user.id}`\n"
         f"👤 Role: {role}\n"
         f"📊 Daily Limit: {limit}\n"
@@ -93,6 +93,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("👤 Set Basic", callback_data="set_basic")],
             [InlineKeyboardButton("🚫 Ban User", callback_data="ban_user")],
             [InlineKeyboardButton("✅ Unban User", callback_data="unban_user")],
+            [InlineKeyboardButton("🔄 Reset User Usage", callback_data="reset_user")],
             [InlineKeyboardButton("❌ Close", callback_data="close_admin")]
         ])
         await query.message.reply_text("🛠 Admin Panel", reply_markup=markup)
@@ -130,6 +131,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["admin_action"] = "unban"
         await query.message.reply_text("✅ Send the USER ID to Unban:")
 
+    elif data == "reset_user" and user.id == ADMIN_ID:
+        context.user_data["admin_action"] = "reset"
+        await query.message.reply_text("🔄 Send the USER ID to reset usage:")
+
 # ================= TEXT HANDLER =================
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -145,16 +150,23 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         uid = int(text)
         if admin_action == "premium":
             set_role(uid, "premium", 1000)
-            await update.message.reply_text(f"✅ User {uid} set to PREMIUM")
+            await update.message.reply_text(f"✅ User {uid} set to PREMIUM (1000 OTP/day)")
         elif admin_action == "basic":
-            set_role(uid, "basic", 50)
-            await update.message.reply_text(f"✅ User {uid} set to BASIC")
+            set_role(uid, "basic", 100)
+            await update.message.reply_text(f"✅ User {uid} set to BASIC (100 OTP/day)")
         elif admin_action == "ban":
             set_role(uid, "banned", 0)
             await update.message.reply_text(f"🚫 User {uid} BANNED")
         elif admin_action == "unban":
-            set_role(uid, "basic", 50)  # unban → default basic
-            await update.message.reply_text(f"✅ User {uid} UNBANNED")
+            set_role(uid, "basic", 100)
+            await update.message.reply_text(f"✅ User {uid} UNBANNED & set to BASIC")
+        elif admin_action == "reset":
+            con = sqlite3.connect("users.db")
+            cur = con.cursor()
+            cur.execute("UPDATE users SET sent_today=0 WHERE user_id=?", (uid,))
+            con.commit()
+            con.close()
+            await update.message.reply_text(f"🔄 User {uid} usage RESET")
         context.user_data.pop("admin_action", None)
         return
 
@@ -191,10 +203,12 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🚀 Sending OTPs...")
         ok, logs = send_exact(phone, count, delay)
         if ok:
-            update_sent(user.id, count)
+            update_sent(user.id, count)  # DB update
         msg = "\n".join(logs)
         msg += "\n\n✅ DONE" if ok else "\n\n⚠️ SOME FAILED"
         await update.message.reply_text(msg, reply_markup=RESTART_MENU)
+
+        # ----------------- SESSION CLEANUP -----------------
         context.user_data.clear()
 
 # ================= RUN BOT =================
@@ -210,5 +224,3 @@ if __name__ == "__main__":
     init_db()
     threading.Thread(target=run_flask, daemon=True).start()
     run_bot()
-
-
