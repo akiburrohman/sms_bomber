@@ -51,7 +51,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     msg = (
         f"👋 Welcome to AKIB BOMBER {user.first_name}\n\n"
-        f"🆔Your User ID: {user.id}\n"
+        f"🆔 Your User ID: `{user.id}`\n"
         f"👤Role: {role}\n"
         f"📊Daily Limit: {limit}\n"
         f"📤Used Today: {sent}\n"
@@ -240,5 +240,6 @@ if __name__ == "__main__":
     init_db()
     threading.Thread(target=run_flask, daemon=True).start()
     run_bot()
+
 
 
