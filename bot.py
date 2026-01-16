@@ -1,5 +1,4 @@
 from db import init_db, get_user, update_sent, set_role
-ADMIN_ID = 5762886443  # তোমার telegram numeric ID
 import os
 import threading
 from flask import Flask
@@ -16,27 +15,28 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
-
 from sender import send_exact
+
+# ================= ADMIN =================
+ADMIN_ID = 5762886443
+ADMIN_USERNAME = "@md_bro2k"
 
 BOT_TOKEN = "8516622054:AAH1Zn2glzECII3j0MddxgcMZosgyxfPUcs"
 
-# ================= FLASK =================
+# ================= FLASK (KEEP ALIVE) =================
 web_app = Flask(__name__)
 
 @web_app.route("/")
 def home():
     return "Bot is alive"
 
-
 def run_flask():
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 10000))
     web_app.run(host="0.0.0.0", port=port)
 
-
-# ================= TELEGRAM BOT =================
+# ================= TELEGRAM UI =================
 START_MENU = InlineKeyboardMarkup([
-    [InlineKeyboardButton("📤 Start Bombing SMS", callback_data="start_sms")],
+    [InlineKeyboardButton("📤 Start Send SMS", callback_data="start_sms")],
     [InlineKeyboardButton("❌ Cancel", callback_data="cancel")]
 ])
 
@@ -45,17 +45,26 @@ CANCEL_MENU = InlineKeyboardMarkup([
 ])
 
 RESTART_MENU = InlineKeyboardMarkup([
-    [InlineKeyboardButton("🔁 Restart Bombing", callback_data="restart")]
+    [InlineKeyboardButton("🔁 Restart", callback_data="restart")]
 ])
 
-
+# ================= COMMANDS =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
     context.user_data.clear()
-    await update.message.reply_text(
-        "👋 Welcome to my akib sms bombing bot",
-        reply_markup=START_MENU
-    )
 
+    role, limit, sent = get_user(user.id, user.username)
+
+    await update.message.reply_text(
+        f"👋 Welcome {user.first_name}\n\n"
+        f"🆔 Your User ID: `{user.id}`\n"
+        f"👤 Role: {role}\n"
+        f"📊 Daily Limit: {limit}\n\n"
+        f"💎 Premium নিতে চাইলে আপনার User ID দিন:\n"
+        f"{ADMIN_USERNAME}",
+        reply_markup=START_MENU,
+        parse_mode="Markdown"
+    )
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -65,14 +74,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.clear()
         context.user_data["step"] = "number"
         await query.message.reply_text(
-            "📱 Enter your number only Bangladeshi number:",
+            "📱 Enter Bangladeshi number (without +88):",
             reply_markup=CANCEL_MENU
         )
 
     elif query.data == "restart":
         context.user_data.clear()
         await query.message.reply_text(
-            "👋 Welcome to my akib sms bomber bot",
+            "🔁 Restarted",
             reply_markup=START_MENU
         )
 
@@ -83,10 +92,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=START_MENU
         )
 
-
+# ================= TEXT FLOW =================
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
     text = update.message.text.strip()
     step = context.user_data.get("step")
+
+    role, limit, sent_today = get_user(user.id, user.username)
+
+    if role == "banned":
+        await update.message.reply_text("🚫 You are banned.")
+        return
 
     if step == "number":
         context.user_data["phone"] = text
@@ -102,7 +118,18 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Enter valid number")
             return
 
-        context.user_data["count"] = int(text)
+        count = int(text)
+
+        if sent_today + count > limit:
+            await update.message.reply_text(
+                f"⚠️ Limit exceeded\n\n"
+                f"Used: {sent_today}/{limit}\n"
+                f"Contact admin for premium:\n{ADMIN_USERNAME}"
+            )
+            context.user_data.clear()
+            return
+
+        context.user_data["count"] = count
         context.user_data["step"] = "delay"
         await update.message.reply_text(
             "⏱ Enter delay (seconds):",
@@ -124,6 +151,9 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         ok, logs = send_exact(phone, count, delay)
 
+        if ok:
+            update_sent(user.id, count)
+
         msg = "\n".join(logs)
         msg += "\n\n✅ DONE" if ok else "\n\n⚠️ SOME FAILED"
 
@@ -133,22 +163,45 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         context.user_data.clear()
 
+# ================= ADMIN COMMANDS =================
+async def setpremium(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    uid = int(context.args[0])
+    set_role(uid, "premium", 100)
+    await update.message.reply_text("✅ User set to PREMIUM")
 
+async def setbasic(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    uid = int(context.args[0])
+    set_role(uid, "basic", 5)
+    await update.message.reply_text("✅ User set to BASIC")
+
+async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    uid = int(context.args[0])
+    set_role(uid, "banned", 0)
+    await update.message.reply_text("🚫 User BANNED")
+
+# ================= RUN =================
 def run_bot():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("setpremium", setpremium))
+    app.add_handler(CommandHandler("setbasic", setbasic))
+    app.add_handler(CommandHandler("ban", ban))
+
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
-    app.run_polling()
 
+    app.run_polling()
 
 # ================= MAIN =================
 if __name__ == "__main__":
-    # Flask in background thread
+    init_db()
+
     threading.Thread(target=run_flask, daemon=True).start()
-
-    # Telegram bot MUST be main thread
     run_bot()
-
-
-
