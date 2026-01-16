@@ -11,7 +11,8 @@ def init_db():
         role TEXT DEFAULT 'basic',
         daily_limit INTEGER DEFAULT 100,
         sent_today INTEGER DEFAULT 0,
-        premium_until TEXT
+        premium_until TEXT,
+        banned INTEGER DEFAULT 0
     )
     """)
     con.commit()
@@ -40,7 +41,8 @@ def get_user(user_id, username=None):
         "sent": row[5],
         "premium_until": row[6],
         "phone": row[2],
-        "username": row[1]
+        "username": row[1],
+        "banned": bool(row[7])
     }
 
 def update_sent(user_id, count):
@@ -70,10 +72,28 @@ def set_phone(user_id, phone):
     con.commit()
     con.close()
 
+def ban_user(user_id):
+    con = sqlite3.connect("users.db")
+    cur = con.cursor()
+    cur.execute("UPDATE users SET banned=1 WHERE user_id=?", (user_id,))
+    con.commit()
+    con.close()
+
+def unban_user(user_id):
+    con = sqlite3.connect("users.db")
+    cur = con.cursor()
+    cur.execute("UPDATE users SET banned=0 WHERE user_id=?", (user_id,))
+    con.commit()
+    con.close()
+
 def get_all_users():
     con = sqlite3.connect("users.db")
     cur = con.cursor()
-    cur.execute("SELECT user_id, username, phone, role, sent_today, daily_limit, premium_until FROM users")
+    cur.execute("""
+        SELECT user_id, username, phone, role,
+        sent_today, daily_limit, premium_until, banned
+        FROM users
+    """)
     rows = cur.fetchall()
     con.close()
     return rows
