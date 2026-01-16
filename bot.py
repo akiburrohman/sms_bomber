@@ -1,3 +1,5 @@
+from db import init_db, get_user, update_sent, set_role
+ADMIN_ID = 5762886443  # তোমার telegram numeric ID
 import os
 import threading
 from flask import Flask
@@ -147,5 +149,6 @@ if __name__ == "__main__":
 
     # Telegram bot MUST be main thread
     run_bot()
+
 
 
