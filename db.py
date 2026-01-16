@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime
 
 def init_db():
     con = sqlite3.connect("users.db")
@@ -9,7 +10,7 @@ def init_db():
         username TEXT,
         phone TEXT,
         role TEXT DEFAULT 'basic',
-        daily_limit INTEGER DEFAULT 100,
+        daily_limit INTEGER DEFAULT 30,
         sent_today INTEGER DEFAULT 0,
         premium_until TEXT,
         banned INTEGER DEFAULT 0
@@ -34,12 +35,26 @@ def get_user(user_id, username=None):
         cur.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
         row = cur.fetchone()
 
+    # ---- AUTO PREMIUM EXPIRE ----
+    role, limit, premium_until = row[3], row[4], row[6]
+    if role == "premium" and premium_until:
+        if datetime.now().date() > datetime.strptime(premium_until, "%Y-%m-%d").date():
+            cur.execute("""
+                UPDATE users
+                SET role='basic', daily_limit=30, premium_until=NULL
+                WHERE user_id=?
+            """, (user_id,))
+            con.commit()
+            role = "basic"
+            limit = 30
+            premium_until = None
+
     con.close()
     return {
-        "role": row[3],
-        "limit": row[4],
+        "role": role,
+        "limit": limit,
         "sent": row[5],
-        "premium_until": row[6],
+        "premium_until": premium_until,
         "phone": row[2],
         "username": row[1],
         "banned": bool(row[7])
@@ -55,13 +70,22 @@ def update_sent(user_id, count):
     con.commit()
     con.close()
 
-def set_role(user_id, role, limit, premium_until=None):
+def reset_daily():
     con = sqlite3.connect("users.db")
     cur = con.cursor()
-    cur.execute(
-        "UPDATE users SET role=?, daily_limit=?, premium_until=? WHERE user_id=?",
-        (role, limit, premium_until, user_id)
-    )
+    cur.execute("UPDATE users SET sent_today = 0")
+    con.commit()
+    con.close()
+
+def set_premium(user_id, days):
+    until = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
+    con = sqlite3.connect("users.db")
+    cur = con.cursor()
+    cur.execute("""
+        UPDATE users
+        SET role='premium', daily_limit=50, premium_until=?
+        WHERE user_id=?
+    """, (until, user_id))
     con.commit()
     con.close()
 
