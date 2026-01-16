@@ -127,7 +127,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         con.close()
         msg = "📊 Users Stats:\n\n"
         for r in rows:
-            msg += f"ID:{r[0]} | {r[1]} | {r[2]} | Sent:{r[3]}/{r[4]}"
+            msg += f"ID:`{r[0]}` | `{r[1]}` | {r[2]} | Sent:{r[3]}/{r[4]}"
             if r[5]:
                 msg += f" | Premium Until:{r[5]}"
             msg += "\n"
@@ -273,4 +273,5 @@ if __name__ == "__main__":
     init_db()
     threading.Thread(target=run_flask, daemon=True).start()
     run_bot()
+
 
