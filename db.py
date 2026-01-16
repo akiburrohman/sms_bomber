@@ -11,7 +11,7 @@ def init_db():
         user_id INTEGER PRIMARY KEY,
         username TEXT,
         role TEXT DEFAULT 'basic',
-        daily_limit INTEGER DEFAULT 5,
+        daily_limit INTEGER DEFAULT 100,
         sent_today INTEGER DEFAULT 0,
         last_date TEXT
     )
@@ -34,7 +34,7 @@ def get_user(user_id, username):
             (user_id, username, today)
         )
         con.commit()
-        role, limit, sent = "basic", 5, 0
+        role, limit, sent = "basic", 100, 0
     else:
         role, limit, sent, last = row[2], row[3], row[4], row[5]
         if last != today:
