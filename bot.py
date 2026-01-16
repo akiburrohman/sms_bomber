@@ -43,28 +43,43 @@ RESTART_MENU = InlineKeyboardMarkup([
 ])
 
 # ================= START COMMAND =================
+def escape_md(text: str) -> str:
+    """
+    Escape text for Telegram MarkdownV2
+    """
+    escape_chars = r'\_*[]()~`>#+-=|{}.!'
+    return ''.join(f'\\{c}' if c in escape_chars else c for c in text)
+
+# ================= START COMMAND =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     context.user_data.clear()
 
-    role, limit, sent, premium_until = get_user(user.id, user.username)
+    role, limit, sent, premium_until = get_user(user.id, user.username)  # premium_until should be added in db fetch
     remaining = max(limit - sent, 0)
 
+    user_id_md = escape_md(str(user.id))
+    first_name_md = escape_md(user.first_name)
+    admin_username_md = escape_md(ADMIN_USERNAME)
+
     msg = (
-        f"👋 Welcome to AKIB BOMBER {user.first_name}\n\n"
-        f"🆔 Your User ID: `{user.id}`\n"
+        f"👋 Welcome to AKIB BOMBER {first_name_md}\n\n"
+        f"🆔 Your User ID: `{user_id_md}`\n"
         f"👤 Role: {role}\n"
         f"📊 Daily Limit: {limit}\n"
         f"📤 Used Today: {sent}\n"
         f"🟢 Remaining: {remaining}\n"
     )
-
     if role == "premium" and premium_until:
-        msg += f"💎 Premium Active Until: {premium_until}\n"
+        msg += f"💎 Premium Active Until: {escape_md(premium_until)}\n"
+    msg += f"\n💎 Premium নিতে চাইলে আপনার User ID দিন:\n{admin_username_md}"
 
-    msg += f"\n💎 Premium নিতে চাইলে আপনার User ID দিন:\n{ADMIN_USERNAME}"
+    await update.message.reply_text(
+        msg,
+        reply_markup=START_MENU,
+        parse_mode="MarkdownV2"
+    )
 
-    await update.message.reply_text(msg, reply_markup=START_MENU, parse_mode="Markdown")
 
 # ================= BUTTON HANDLER =================
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -258,3 +273,4 @@ if __name__ == "__main__":
     init_db()
     threading.Thread(target=run_flask, daemon=True).start()
     run_bot()
+
