@@ -106,9 +106,53 @@ APIS = [
     "url": lambda mobile: f"https://api.medeasy.health/api/send-otp/{mobile}/",
     "payload": None,  # GET এর জন্য payload দরকার নেই, mobile URL এ যাবে
     "success_codes": [200, 201]
-    }
+    },
+    {
+        "name": "Hisabee",
+        "method": "POST",
+        "url": "https://api.apex4u.com/api/auth/login",
+        "payload": lambda phone: {
+            "mobile_number": phone,
+            "country_code": "88"
+        },
+        "success": lambda r: r.status_code in [200,201]
+    },
+    {
+        "name": "Garibook",
+        "method": "POST",
+        "url": "https://api.garibookadmin.com/api/v4/user/login",
+        "payload": lambda phone: {
+        "channel": "web",
+        "mobile": f"+88{phone}",
+        "recaptcha_token": "garibookcaptcha"
+        },
+        "success": lambda r: r.status_code in [200,201]
+    },
+    {
+        "name": "Bohubrihi",
+        "method": "POST",
+        "url": "https://bb-api.bohubrihi.com/public/activity/otp",
+        "payload": lambda phone: {
+        "intent": "login",
+        "phone": phone
+        },
+        "success": lambda r: r.status_code in [200,201]
+    },
+    {
+        "name": "Bikroy",
+        "method": "GET",
+        "url": "https://bikroy.com/data/phone_number_login/verifications/phone_login",
+        "payload": lambda phone: {"phone": phone},
+        "success": lambda r: r.status_code in [200, 201],
+        "add_88": False,
+        "headers": {
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "application/json"
+        }
+    },
 
 ]
+
 
 
 
