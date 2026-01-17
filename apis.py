@@ -90,7 +90,7 @@ APIS = [
         "name": "hoichoi",
         "method": "POST",
         "url": "https://prod-api.hoichoi.dev/core/api/v1/auth/signinup/code",
-        "payload": lambda phone: {"phoneNumber": phone},
+        "payload": lambda phone: {"phoneNumber": f"+88{phone}"},
         "success": lambda r: r.status_code in [200,201]
     },
     {
@@ -109,6 +109,7 @@ APIS = [
     }
 
 ]
+
 
 
 
