@@ -101,14 +101,15 @@ APIS = [
         "success": lambda r: r.status_code in [200,201]
     }, 
     {
-    "name": "MedEasy",
-    "method": "GET",
-    "url": "https://api.medeasy.health/api/send-otp/",
-    "payload": lambda phone: f"880{phone}",
-    "success": lambda r: r.status_code in [200, 201]
+    "name": "MedEasy OTP API",
+    "method": "GET",  # MedEasy API GET use করে
+    "url": lambda mobile: f"https://api.medeasy.health/api/send-otp/{mobile}/",
+    "payload": None,  # GET এর জন্য payload দরকার নেই, mobile URL এ যাবে
+    "success_codes": [200, 201]
     }
 
 ]
+
 
 
 
