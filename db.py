@@ -12,7 +12,7 @@ def init_db():
         username TEXT,
         phone TEXT,
         role TEXT DEFAULT 'basic',
-        daily_limit INTEGER DEFAULT 30,
+        daily_limit INTEGER DEFAULT 100,
         sent_today INTEGER DEFAULT 0,
         premium_until TEXT
     )
@@ -28,7 +28,7 @@ def get_user(user_id, username=None):
     if not row:
         # add new user
         role = "basic"
-        limit = 30
+        limit = 100
         cur.execute("INSERT INTO users(user_id, username, role, daily_limit, sent_today) VALUES(?,?,?,?,?)",
                     (user_id, username, role, limit, 0))
         con.commit()
@@ -44,7 +44,7 @@ def update_sent(user_id, count):
     con.commit()
     con.close()
 
-def set_role(user_id, role, limit=30):
+def set_role(user_id, role, limit=100):
     con = sqlite3.connect(DB_FILE)
     cur = con.cursor()
     cur.execute("UPDATE users SET role=?, daily_limit=? WHERE user_id=?", (role, limit, user_id))
