@@ -126,8 +126,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         rows = cur.fetchall()
         con.close()
 
-        def escape_md1(text):
-        return str(text).replace("_", "\\_").replace("*", "\\*").replace("[", "\\[").replace("`", "\\`")
+        
 
         msg = "📊 Users Stats:\n\n"
         for r in rows:
@@ -267,6 +266,7 @@ if __name__ == "__main__":
     init_db()
     threading.Thread(target=run_flask, daemon=True).start()
     run_bot()
+
 
 
 
