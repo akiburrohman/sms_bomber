@@ -53,7 +53,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remaining = max(limit - sent, 0)
     premium_until = get_premium_until(user.id)
 
-    # MarkdownV1 escape for Telegram
+    # HTMLV1 escape for Telegram
     def escape_md1(text):
         return str(text).replace("_", "\\_").replace("*", "\\*").replace("[", "\\[").replace("`", "\\`")
 
@@ -75,7 +75,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += f"💎 Premium valid until: `{premium_text}`\n"
     msg += f"\n💎 Premium নিতে চাইলে আপনার User ID দিন:\n{ADMIN_USERNAME}"
 
-    await update.message.reply_text(msg, reply_markup=START_MENU, parse_mode="Markdown")
+    await update.message.reply_text(msg, reply_markup=START_MENU, parse_mode="HTML")
 
 # ================= BUTTON HANDLER =================
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -141,7 +141,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             premium_md = escape_md1(premium_until) if premium_until else "N/A"
             msg += f"ID:`{uid_md}` | Username:`{uname_md}` | Phone:`{phone_md}` | Role:`{role_md}` | Sent:`{sent_md}/{limit_md}` | Premium Until:`{premium_md}`\n"
 
-        await query.message.reply_text(msg, parse_mode="Markdown")
+        await query.message.reply_text(msg, parse_mode="HTML")
 
     elif data in ["set_premium", "set_basic", "ban_user", "unban_user", "reset_user"] and user.id == ADMIN_ID:
         context.user_data["admin_action"] = data
@@ -267,3 +267,4 @@ if __name__ == "__main__":
     init_db()
     threading.Thread(target=run_flask, daemon=True).start()
     run_bot()
+
