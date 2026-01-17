@@ -66,13 +66,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     premium_text = escape_md1(premium_until) if role == "premium" and premium_until else ""
 
     msg = f"👋 Welcome to AKIB BOMBER {first_name_md}\n\n"
-    msg += f"🆔 Your User ID: `{user_id_md}`\n"
+    msg += f"🆔 Your User ID: <code>{user_id_md}</code>\n"
     msg += f"👤 Role: {role_md}\n"
     msg += f"📊 Daily Limit: {limit_md}\n"
     msg += f"📤 Used Today: {sent_md}\n"
     msg += f"🟢 Remaining: {remaining_md}\n"
     if premium_text:
-        msg += f"💎 Premium valid until: `{premium_text}`\n"
+        msg += f"💎 Premium valid until: <code>{premium_text}</code>\n"
     msg += f"\n💎 Premium নিতে চাইলে আপনার User ID দিন:\n{ADMIN_USERNAME}"
 
     await update.message.reply_text(msg, reply_markup=START_MENU, parse_mode="HTML")
@@ -126,8 +126,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         rows = cur.fetchall()
         con.close()
 
-        def escape_md1(text):
-            return str(text).replace("_", "\\_").replace("*", "\\*").replace("[", "\\[").replace("`", "\\`")
+        
 
         msg = "📊 Users Stats:\n\n"
         for r in rows:
@@ -139,7 +138,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             sent_md = escape_md1(sent)
             limit_md = escape_md1(limit)
             premium_md = escape_md1(premium_until) if premium_until else "N/A"
-            msg += f"ID:`{uid_md}` | Username:`{uname_md}` | Phone:`{phone_md}` | Role:`{role_md}` | Sent:`{sent_md}/{limit_md}` | Premium Until:`{premium_md}`\n"
+            msg += f"ID:<code>{uid_md}</code> | Username:<code>{uname_md}</code> | Phone:<code>{phone_md}</code> | Role:<code>{role_md}<code> | Sent:<code>{sent_md}/{limit_md}</code> | Premium Until:<code>{premium_md}</code>\n"
 
         await query.message.reply_text(msg, parse_mode="HTML")
 
@@ -267,4 +266,5 @@ if __name__ == "__main__":
     init_db()
     threading.Thread(target=run_flask, daemon=True).start()
     run_bot()
+
 
