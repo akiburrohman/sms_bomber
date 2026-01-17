@@ -104,11 +104,12 @@ APIS = [
     "name": "MedEasy",
     "method": "GET",
     "url": "https://api.medeasy.health/api/send-otp/",
-    "payload": lambda phone: f"+880{phone}",
+    "payload": lambda phone: f"880{phone}",
     "success": lambda r: r.status_code in [200, 201]
     }
 
 ]
+
 
 
 
