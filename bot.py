@@ -1,6 +1,7 @@
 import os
 import threading
 import sqlite3
+from datetime import datetime, timedelta
 from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -44,6 +45,10 @@ BACK_MENU = InlineKeyboardMarkup([
     [InlineKeyboardButton("⬅️ Back", callback_data="back")]
 ])
 
+# ================= HELPER =================
+def escape_html(text):
+    return str(text) if text is not None else "N/A"
+
 # ================= START COMMAND =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -53,26 +58,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remaining = max(limit - sent, 0)
     premium_until = get_premium_until(user.id)
 
-    # HTMLV1 escape for Telegram
-    def escape_md1(text):
-        return str(text).replace("_", "\\_").replace("*", "\\*").replace("[", "\\[").replace("`", "\\`")
-
-    user_id_md = escape_md1(user.id)
-    first_name_md = escape_md1(user.first_name)
-    role_md = escape_md1(role)
-    limit_md = escape_md1(limit)
-    sent_md = escape_md1(sent)
-    remaining_md = escape_md1(remaining)
-    premium_text = escape_md1(premium_until) if role == "premium" and premium_until else ""
-
-    msg = f"👋 Welcome to AKIB BOMBER {first_name_md}\n\n"
-    msg += f"🆔 Your User ID: <code>{user_id_md}</code>\n"
-    msg += f"👤 Role: {role_md}\n"
-    msg += f"📊 Daily Limit: {limit_md}\n"
-    msg += f"📤 Used Today: {sent_md}\n"
-    msg += f"🟢 Remaining: {remaining_md}\n"
-    if premium_text:
-        msg += f"💎 Premium valid until: <code>{premium_text}</code>\n"
+    msg = f"👋 Welcome to AKIB BOMBER {escape_html(user.first_name)}\n\n"
+    msg += f"🆔 Your User ID: <code>{escape_html(user.id)}</code>\n"
+    msg += f"👤 Role: {escape_html(role)}\n"
+    msg += f"📊 Daily Limit: {escape_html(limit)}\n"
+    msg += f"📤 Used Today: {escape_html(sent)}\n"
+    msg += f"🟢 Remaining: {escape_html(remaining)}\n"
+    if role == "premium" and premium_until:
+        msg += f"💎 Premium valid until: <code>{escape_html(premium_until)}</code>\n"
     msg += f"\n💎 Premium নিতে চাইলে আপনার User ID দিন:\n{ADMIN_USERNAME}"
 
     await update.message.reply_text(msg, reply_markup=START_MENU, parse_mode="HTML")
@@ -126,19 +119,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         rows = cur.fetchall()
         con.close()
 
-        
-
         msg = "📊 Users Stats:\n\n"
         for r in rows:
             uid, uname, phone, role, sent, limit, premium_until = r
-            uname_md = escape_md1(uname) if uname else "N/A"
-            uid_md = escape_md1(uid)
-            phone_md = escape_md1(phone) if phone else "N/A"
-            role_md = escape_md1(role)
-            sent_md = escape_md1(sent)
-            limit_md = escape_md1(limit)
-            premium_md = escape_md1(premium_until) if premium_until else "N/A"
-            msg += f"ID:<code>{uid_md}</code> | Username:<code>{uname_md}</code> | Phone:<code>{phone_md}</code> | Role:<code>{role_md}<code> | Sent:<code>{sent_md}/{limit_md}</code> | Premium Until:<code>{premium_md}</code>\n"
+            msg += f"ID:<code>{escape_html(uid)}</code> | Username:<code>{escape_html(uname)}</code> | Phone:<code>{escape_html(phone)}</code> | Role:<code>{escape_html(role)}</code> | Sent:<code>{escape_html(sent)}/{escape_html(limit)}</code> | Premium Until:<code>{escape_html(premium_until)}</code>\n"
 
         await query.message.reply_text(msg, parse_mode="HTML")
 
@@ -198,8 +182,11 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         days = int(text)
         uid = context.user_data.get("admin_uid")
-        update_premium(uid, days)
-        await update.message.reply_text(f"💎 Premium for User {uid} set for {days} days")
+        # ---------- FIX: properly update premium_until -------------
+        until = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
+        update_premium(uid, until)
+        await update.message.reply_text(f"💎 Premium for User {uid} set for {days} days (until {until})")
+        # ----------------- cleanup -----------------
         context.user_data.pop("admin_uid", None)
         context.user_data.pop("admin_action", None)
         context.user_data.pop("step", None)
@@ -266,7 +253,3 @@ if __name__ == "__main__":
     init_db()
     threading.Thread(target=run_flask, daemon=True).start()
     run_bot()
-
-
-
-
