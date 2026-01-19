@@ -15,7 +15,7 @@ from db import init_db, get_user, update_sent, set_role
 # ================= ADMIN CONFIG =================
 ADMIN_ID = 5762886443
 ADMIN_USERNAME = "@md_bro2k"
-BOT_TOKEN = "8510819274:AAGirN9ElrQVPrAKlP3DDio-uhKI8338z-U"
+BOT_TOKEN = "8516622054:AAH1Zn2glzECII3j0MddxgcMZosgyxfPUcs"
 
 # ================= FLASK (KEEP ALIVE) =================
 web_app = Flask(__name__)
@@ -237,3 +237,4 @@ if __name__ == "__main__":
     init_db()
     threading.Thread(target=run_flask, daemon=True).start()
     run_bot()
+
