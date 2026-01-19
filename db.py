@@ -1,82 +1,77 @@
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
-DB_FILE = "users.db"
+DB = "users.db"
 
-# ================= INIT DB =================
 def init_db():
-    con = sqlite3.connect(DB_FILE)
+    con = sqlite3.connect(DB)
     cur = con.cursor()
     cur.execute("""
-    CREATE TABLE IF NOT EXISTS users(
+    CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY,
         username TEXT,
-        phone TEXT,
         role TEXT DEFAULT 'basic',
-        daily_limit INTEGER DEFAULT 100,
+        daily_limit INTEGER DEFAULT 5,
         sent_today INTEGER DEFAULT 0,
-        premium_until TEXT
+        last_date TEXT
     )
     """)
     con.commit()
     con.close()
 
-# ================= GET USER =================
-def get_user(user_id, username=None):
-    con = sqlite3.connect(DB_FILE)
+def get_user(user_id, username):
+    """Return role, daily_limit, sent_today and reset if new BD day"""
+    today = str(bd_today())
+    con = sqlite3.connect(DB)
     cur = con.cursor()
-    cur.execute("SELECT role, daily_limit, sent_today FROM users WHERE user_id=?", (user_id,))
+
+    cur.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
     row = cur.fetchone()
+
     if not row:
-        # add new user
-        role = "basic"
-        limit = 100
+        # New user
         cur.execute(
-            "INSERT INTO users(user_id, username, role, daily_limit, sent_today) VALUES(?,?,?,?,?)",
-            (user_id, username, role, limit, 0)
+            "INSERT INTO users (user_id, username, last_date) VALUES (?,?,?)",
+            (user_id, username, today)
         )
         con.commit()
-        con.close()
-        return role, limit, 0
-    con.close()
-    return row
+        role, limit, sent = "basic", 5, 0
+    else:
+        role, limit, sent, last = row[2], row[3], row[4], row[5]
+        if last != today:
+            # Reset daily usage if new BD day
+            cur.execute(
+                "UPDATE users SET sent_today=0, last_date=? WHERE user_id=?",
+                (today, user_id)
+            )
+            con.commit()
+            sent = 0
 
-# ================= UPDATE SENT =================
+    con.close()
+    return role, limit, sent
+
 def update_sent(user_id, count):
-    con = sqlite3.connect(DB_FILE)
+    con = sqlite3.connect(DB)
     cur = con.cursor()
-    cur.execute("UPDATE users SET sent_today = sent_today + ? WHERE user_id=?", (count, user_id))
-    con.commit()
-    con.close()
-
-# ================= SET ROLE =================
-def set_role(user_id, role, limit=100):
-    con = sqlite3.connect(DB_FILE)
-    cur = con.cursor()
-    cur.execute("UPDATE users SET role=?, daily_limit=? WHERE user_id=?", (role, limit, user_id))
-    con.commit()
-    con.close()
-
-# ================= UPDATE PREMIUM =================
-def update_premium(user_id, days):
-    """Set user as premium for given days"""
-    con = sqlite3.connect(DB_FILE)
-    cur = con.cursor()
-    premium_until = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
     cur.execute(
-        "UPDATE users SET role='premium', daily_limit=50, premium_until=? WHERE user_id=?",
-        (premium_until, user_id)
+        "UPDATE users SET sent_today = sent_today + ? WHERE user_id=?",
+        (count, user_id)
     )
     con.commit()
     con.close()
 
-# ================= GET PREMIUM UNTIL =================
-def get_premium_until(user_id):
-    con = sqlite3.connect(DB_FILE)
+def set_role(user_id, role, limit):
+    con = sqlite3.connect(DB)
     cur = con.cursor()
-    cur.execute("SELECT premium_until FROM users WHERE user_id=?", (user_id,))
-    row = cur.fetchone()
+    cur.execute(
+        "UPDATE users SET role=?, daily_limit=? WHERE user_id=?",
+        (role, limit, user_id)
+    )
+    con.commit()
     con.close()
-    if row and row[0]:
-        return row[0]
-    return None
+
+def bd_today():
+    """Return current date in Bangladesh timezone (UTC+6)"""
+    now_utc = datetime.utcnow()
+    now_bd = now_utc + timedelta(hours=6)
+    return now_bd.date()
