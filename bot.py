@@ -119,7 +119,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg = "📊 Users Stats:\n\n"
         for r in rows:
             msg += f"ID:<code>{r[0]}</code> | {r[1]} | {r[2]} | Sent:{r[3]}/{r[4]}\n"
-        await query.message.reply_text(msg, reply_markup=RESTART_MENU)
+        await query.message.reply_text(msg, reply_markup=RESTART_MENU, parse_mode="HTML")
 
     elif data in ["set_premium","set_basic","ban_user","unban_user","reset_user"] and user.id == ADMIN_ID:
         actions = {
@@ -237,5 +237,6 @@ if __name__ == "__main__":
     init_db()
     threading.Thread(target=run_flask, daemon=True).start()
     run_bot()
+
 
 
