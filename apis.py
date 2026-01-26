@@ -189,6 +189,36 @@ APIS = [
         "Content-Type": "application/json"
     }
     },
+    {
+    "name": "AmarBay",
+    "method": "POST",
+    "url": "https://backend.amarbay.com/user/find_user_by_phone/",
+    "phone_format": "plain",
+    "payload": lambda phone: {
+        "phone_number": phone
+    },
+    "headers": {
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0"
+    }
+},
+{
+    "name": "ULA",
+    "method": "POST",
+    "url": "https://www.ula.com.bd/api/send-otp",
+    "phone_format": "plain",
+    "payload": lambda phone: {
+        "identifier": phone,
+        "need_exists_check": False,
+        "purpose": "login"
+    },
+    "headers": {
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0"
+    }
+},
+
 
 
 ]
+
