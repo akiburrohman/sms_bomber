@@ -15,7 +15,7 @@ from db import init_db, get_user, update_sent, set_role
 # ================= ADMIN CONFIG =================
 ADMIN_ID = 5762886443
 ADMIN_USERNAME = "@md_bro2k"
-BOT_TOKEN = "8516622054:AAH1Zn2glzECII3j0MddxgcMZosgyxfPUcs"
+BOT_TOKEN = "8516622054:AAHbLr2w0wLto-ScJT82gm9zBS1yEjZZJ94"
 
 # ================= FLASK (KEEP ALIVE) =================
 web_app = Flask(__name__)
